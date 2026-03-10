@@ -889,6 +889,10 @@ document.dispatchEvent(new Event("firebaseReady"));
                   <label>Data Necessária</label>
                   <input type="date" id="sDataNecessaria">
                 </div>
+                <div class="form-group">
+                  <label>Acompanhamento</label>
+                  <input type="text" id="sAcompanhamento" placeholder="Ex: João - (11) 99999-9999">
+                </div>
                 <div class="form-group full">
                   <label>Observações</label>
                   <textarea id="sObs" placeholder="Informações adicionais, referências, etc..." style="min-height:60px"></textarea>
@@ -1520,6 +1524,7 @@ function concluirLogin() {
   if (selectedRole === 'solicitante') {
     document.getElementById('navNovaSolic').style.display = 'flex';
     document.getElementById('navMinhasSolic').style.display = 'flex';
+    document.getElementById('navAcompanhamento').style.display = 'flex';
     showPage('minhasSolicitacoes', document.getElementById('navMinhasSolic'));
   }
   if (selectedRole === 'compras') {
@@ -1949,10 +1954,11 @@ async function adminLimparDemo() {
 }
 
 // ===== WHATSAPP =====
-const WA_COMPRAS = '5535994898816';       // Mariana Compras
+const WA_COMPRAS = '5511943712829';       // Mariana Compras / Financeiro
 const WA_MARY    = '5511994523071';
-const WA_ERIC    = '5511994616779';
-const WA_RICARDO = '5511963975404';
+const WA_ERIC    = '5511963975404';
+const WA_RICARDO = '5511994616779';
+const WA_GESTOR  = '5511943712829';       // Gestor — recebe tudo
 const WA_DIRETORIA = [WA_MARY, WA_ERIC, WA_RICARDO];
 
 function enviarWhatsApp(numero, mensagem) {
@@ -1960,7 +1966,7 @@ function enviarWhatsApp(numero, mensagem) {
   window.open(url, '_blank');
 }
 
-function notificarWhatsApp(tipo, dados) {
+function notificarWALegado(tipo, dados) {
   var msg = '';
   if (tipo === 'nova_solicitacao') {
     msg = '📋 *GRUPO FX - Nova Solicitação*' + '\n' +
@@ -1969,15 +1975,17 @@ function notificarWhatsApp(tipo, dados) {
       'Descrição: ' + dados.descricao + '\n' +
       'Solicitante: ' + dados.solicitante + '\n' +
       'Urgência: ' + dados.urgencia + '\n\n' +
-      '👉 Acesse o sistema para orçar:\nhttps://graceful-travesseiro-bcf10f.netlify.app/';
+      '👉 Acesse o sistema para orçar:\nhttps://grupofx-compras.vercel.app/';
     // Abrir para Compras
     enviarWhatsApp(WA_COMPRAS, msg);
+    // Notificar Gestor também
+    setTimeout(function() { enviarWhatsApp(WA_GESTOR, msg); }, 800);
   } else if (tipo === 'aguardando_aprovacao') {
     msg = '✅ *GRUPO FX - Orçamento Pronto*' + '\n' +
       'Pedido *' + dados.id + '* está aguardando sua aprovação.' + '\n' +
       'Unidade: ' + dados.unidade + '\n' +
       'Descrição: ' + dados.descricao + '\n\n' +
-      '👉 Acesse para aprovar:\nhttps://graceful-travesseiro-bcf10f.netlify.app/';
+      '👉 Acesse para aprovar:\nhttps://grupofx-compras.vercel.app/';
     // Abrir para cada diretor em sequência
     WA_DIRETORIA.forEach(function(num) { enviarWhatsApp(num, msg); });
   } else if (tipo === 'aprovado') {
@@ -1985,15 +1993,19 @@ function notificarWhatsApp(tipo, dados) {
       'Pedido *' + dados.id + '* foi *APROVADO*.' + '\n' +
       'Unidade: ' + dados.unidade + '\n' +
       'Descrição: ' + dados.descricao + '\n\n' +
-      '👉 Acompanhe no sistema:\nhttps://graceful-travesseiro-bcf10f.netlify.app/';
+      '👉 Acompanhe no sistema:\nhttps://grupofx-compras.vercel.app/';
     enviarWhatsApp(WA_COMPRAS, msg);
+    // Notificar Gestor sobre aprovação
+    setTimeout(function() { enviarWhatsApp(WA_GESTOR, msg); }, 800);
   } else if (tipo === 'reprovado') {
     msg = '❌ *GRUPO FX - Pedido Reprovado*' + '\n' +
       'Pedido *' + dados.id + '* foi *REPROVADO*.' + '\n' +
       'Unidade: ' + dados.unidade + '\n' +
       'Motivo: ' + (dados.motivo || 'Não informado') + '\n\n' +
-      '👉 Acesse o sistema para mais detalhes:\nhttps://graceful-travesseiro-bcf10f.netlify.app/';
+      '👉 Acesse o sistema para mais detalhes:\nhttps://grupofx-compras.vercel.app/';
     enviarWhatsApp(WA_COMPRAS, msg);
+    // Notificar Gestor sobre reprovação
+    setTimeout(function() { enviarWhatsApp(WA_GESTOR, msg); }, 800);
   }
 }
 
@@ -2161,6 +2173,7 @@ function editarSolicitacao(idx) {
     document.getElementById('sQtd').value = s.qtd || '';
     document.getElementById('sUnidMed').value = s.unidMed || '';
     document.getElementById('sDataNecessaria').value = s.dataNecessaria || '';
+    document.getElementById('sAcompanhamento').value = s.acompResponsavel || '';
     document.getElementById('sObs').value = s.obs || '';
     // Restaurar anexos existentes na UI
     var chaveAnexo = 'solic_' + s.id;
@@ -2188,6 +2201,7 @@ function salvarEdicaoSolicitacao(idx) {
   s.unidMed = document.getElementById('sUnidMed').value;
   s.urgencia = document.getElementById('sUrgencia').value;
   s.dataNecessaria = document.getElementById('sDataNecessaria').value;
+  s.acompResponsavel = document.getElementById('sAcompanhamento').value;
   s.obs = document.getElementById('sObs').value;
   // Migrar anexos editados de volta para a chave e para o objeto
   if (anexosStore['solic'] && anexosStore['solic'].length) {
@@ -2641,6 +2655,7 @@ function salvarSolicitacao() {
     unidMed: document.getElementById('sUnidMed').value,
     urgencia: document.getElementById('sUrgencia').value,
     dataNecessaria: document.getElementById('sDataNecessaria').value,
+    acompResponsavel: document.getElementById('sAcompanhamento').value,
     obs: document.getElementById('sObs').value,
     solicitante: nomeCompleto,
     cargo: cargo,
@@ -2660,7 +2675,7 @@ function salvarSolicitacao() {
   salvarAnexosLocal();
   addNotif(`📋 Nova solicitação ${nova.id} criada — ${unidade} (aguardando orçamento)`);
   if (confirm('Deseja enviar notificação WhatsApp para o setor de Compras?')) {
-    notificarWhatsApp('nova_solicitacao', nova);
+    notificarWALegado('nova_solicitacao', nova);
   }
   updateBadges();
   showToast('✅ Solicitação enviada com sucesso!', 'green');
@@ -2762,6 +2777,7 @@ function openDetail(idx) {
           <div class="detail-row"><div class="detail-label">Urgência</div><div class="detail-value">${urgBadge(s.urgencia)}</div></div>
           <div class="detail-row"><div class="detail-label">Quantidade</div><div class="detail-value">${s.qtd||'-'} ${s.unidMed||''}</div></div>
           <div class="detail-row"><div class="detail-label">Data Necessária</div><div class="detail-value">${s.dataNecessaria?formatDate(s.dataNecessaria):'-'}</div></div>
+          <div class="detail-row"><div class="detail-label">Acompanhamento</div><div class="detail-value">${s.acompResponsavel||'-'}</div></div>
           <div class="detail-row"><div class="detail-label">Solicitante</div><div class="detail-value">${s.solicitante}${s.cargo ? '<span style="font-size:11px;color:var(--text3);margin-left:8px">(' + s.cargo + ')</span>' : ''}</div></div>
           <div class="detail-row"><div class="detail-label">Data Solicitação</div><div class="detail-value">${formatDate(s.data)}</div></div>
           ${s.obs?`<div class="detail-row"><div class="detail-label">Observações</div><div class="detail-value" style="color:var(--text2)">${s.obs}</div></div>`:''}
@@ -3046,7 +3062,7 @@ function enviarOrcamentoAprovacao(idx) {
   s.status = 'Aguardando Aprovação';
   setTimeout(function() {
     if (confirm('Deseja notificar a Diretoria via WhatsApp para aprovar o pedido ' + s.id + '?')) {
-      notificarWhatsApp('aguardando_aprovacao', s);
+      notificarWALegado('aguardando_aprovacao', s);
     }
   }, 300);
   s.timeline.push({ acao: 'Orçamento enviado para aprovação da Diretoria', usuario: currentUser.name, data: formatDateTime(new Date()), tipo: 'orange' });
@@ -3123,9 +3139,9 @@ function executarAprovacao(idx, decisao) {
   // WhatsApp notificacao
   setTimeout(function() {
     if (decisao === 'Aprovado' && confirm('Notificar Compras via WhatsApp sobre aprovação?')) {
-      notificarWhatsApp('aprovado', s);
+      notificarWALegado('aprovado', s);
     } else if (decisao === 'Reprovado' && confirm('Notificar Compras via WhatsApp sobre reprovação?')) {
-      notificarWhatsApp('reprovado', Object.assign({}, s, { motivo: obs }));
+      notificarWALegado('reprovado', Object.assign({}, s, { motivo: obs }));
     }
   }, 300);
   const tipoMap = { 'Aprovado':'green', 'Reprovado':'red', 'Pedido de Alteração':'purple' };
@@ -3146,22 +3162,22 @@ function executarAprovacao(idx, decisao) {
 }
 
 // ===== CONTATOS FIXOS DO SISTEMA =====
-const SISTEMA_URL = 'https://subtle-banoffee-27b62b.netlify.app';
+const SISTEMA_URL = 'https://grupofx-compras.vercel.app';
 
 const CONTATOS = {
   diretoria: [
     { nome: 'Mary',    whatsapp: '5511994523071', email: 'mary@grupofx.com.br' },
-    { nome: 'Eric',    whatsapp: '5511994616779', email: 'eric.gimenes@grupofx.com.br' },
-    { nome: 'Ricardo', whatsapp: '5511963975404', email: 'ricardo@grupofx.com.br' }
+    { nome: 'Eric',    whatsapp: '5511963975404', email: 'eric.gimenes@grupofx.com.br' },
+    { nome: 'Ricardo', whatsapp: '5511994616779', email: 'ricardo@grupofx.com.br' }
   ],
   compras: {
     nome: 'Mariana',
-    whatsapp: '5535994898816',
+    whatsapp: '5511943712829',
     email: 'mariana.oliveira@grupofx.com.br'
   },
   financeiro: {
     nome: 'Financeiro',
-    whatsapp: '5511999999999', // ← ALTERE para o número do Financeiro
+    whatsapp: '5511943712829',
     email: 'financeiro@grupofx.com.br'
   }
 };
