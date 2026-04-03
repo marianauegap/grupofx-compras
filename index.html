@@ -1687,23 +1687,22 @@ function doLogin() {
     if (window._carregarFirebase) {
       try {
         const dados = await window._carregarFirebase();
-        if (dados && dados.solicitacoes && dados.solicitacoes.length > 0) {
-          solicitacoes = dados.solicitacoes;
-          solicitacoes.sort((a,b) => (b.data||'').localeCompare(a.data||''));
+        // Sempre usar dados do Firebase (mesmo que vazio), nunca sobrescrever com localStorage
+        solicitacoes = (dados && dados.solicitacoes) ? dados.solicitacoes : [];
+        solicitacoes.sort((a,b) => (b.data||'').localeCompare(a.data||''));
+        if (solicitacoes.length > 0) {
           nextId = Math.max(...solicitacoes.map(s => parseInt(s.id.replace('SC-','')) || 0), 1006) + 1;
-          if (dados.fornecedores && dados.fornecedores.length > 0) {
-            window.fornecedoresDB = dados.fornecedores;
-          }
-          // Salvar no localStorage como cache
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(solicitacoes));
-            localStorage.setItem(STORAGE_ID_KEY, String(nextId));
-          } catch(e) {}
         } else {
-          // Firebase vazio: carregar dados demo e salvar no Firebase
-          initDemoData();
-          await window._salvarSolicFirebase(solicitacoes);
+          nextId = 1001;
         }
+        if (dados && dados.fornecedores && dados.fornecedores.length > 0) {
+          window.fornecedoresDB = dados.fornecedores;
+        }
+        // Salvar no localStorage apenas como cache local (nunca como fonte principal)
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(solicitacoes));
+          localStorage.setItem(STORAGE_ID_KEY, String(nextId));
+        } catch(e) {}
       } catch(e) {
         console.warn('Firebase indisponível, usando dados locais:', e);
         initDemoData();
