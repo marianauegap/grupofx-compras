@@ -94,6 +94,12 @@ window._salvarFornFirebase = async function(fornecedores) {
   } catch(e) { console.error("Erro Firebase salvar forn:", e); }
 };
 
+window._deletarFornFirebase = async function(id) {
+  try {
+    await deleteDoc(doc(db, "fornecedores", id));
+  } catch(e) { console.error("Erro ao deletar fornecedor:", e); }
+};
+
 window._carregarFirebase = async function() {
   try {
     const ss = await getDocs(collection(db, "solicitacoes"));
@@ -360,6 +366,9 @@ document.dispatchEvent(new Event("firebaseReady"));
   .role-btn.active { border-color: var(--accent); background: rgba(79,124,255,0.12); color: var(--accent); }
   .role-icon { font-size: 20px; display: block; margin-bottom: 4px; }
 
+  /* Dashboard grid — 3 colunas no desktop */
+  .dash-grid { grid-template-columns: 1fr 1fr 1fr; }
+
   /* MOBILE — tela cheia, elementos grandes */
   @media (max-width: 900px) {
     .login-page { align-items: flex-start; }
@@ -502,6 +511,9 @@ document.dispatchEvent(new Event("firebaseReady"));
 
     /* Fornecedores grid no orçamento */
     .fornecedor-grid { grid-template-columns: 1fr !important; }
+
+    /* Dashboard — cards inferiores (Por Unidade, Por Status, Últimas Solicitações) */
+    .dash-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
 
     /* Abas financeiro */
     #tabFinPendente, #tabFinRealizado { padding: 8px 12px; font-size: 12px; }
@@ -718,7 +730,7 @@ document.dispatchEvent(new Event("firebaseReady"));
             </div>
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:20px" class="dash-grid">
+          <div style="display:grid;gap:20px;margin-bottom:20px;width:100%;box-sizing:border-box" class="dash-grid">
             <div class="section">
               <div class="section-header">
                 <span class="section-title">📍 Por Unidade</span>
@@ -2223,7 +2235,7 @@ async function adminLimparDemo() {
 }
 
 // ===== WHATSAPP =====
-const WA_COMPRAS = '5511943712829';       // Mariana Compras / Financeiro
+const WA_COMPRAS = '5535999489816';       // Mariana Compras / Financeiro
 const WA_MARY    = '5511994523071';
 const WA_ERIC    = '5511963975404';
 const WA_RICARDO = '5511994616779';
@@ -3505,7 +3517,7 @@ const CONTATOS = {
   ],
   compras: {
     nome: 'Mariana',
-    whatsapp: '5511943712829',
+    whatsapp: '5535999489816',
     email: 'mariana.oliveira@grupofx.com.br'
   },
   financeiro: {
@@ -4889,6 +4901,227 @@ function adicionarComentario(idSolic) {
   document.getElementById('novoComentario').value = '';
   showToast('💬 Comentário adicionado!', 'blue');
 }
+
+// ==================== MÓDULO DE FORNECEDORES ====================
+
+window.fornecedoresDB = window.fornecedoresDB || [];
+
+function loadFornecedores() {
+  // Tenta carregar do localStorage como cache
+  try {
+    const cached = localStorage.getItem('grupofx_fornecedores');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.length > 0 && !window.fornecedoresDB.length) {
+        window.fornecedoresDB = parsed;
+      }
+    }
+  } catch(e) {}
+}
+
+function saveFornecedores() {
+  try {
+    localStorage.setItem('grupofx_fornecedores', JSON.stringify(window.fornecedoresDB));
+  } catch(e) {}
+  if (window._salvarFornFirebase) {
+    window._salvarFornFirebase(window.fornecedoresDB);
+  }
+}
+
+function initFornecedores() {
+  // Garante que o modal de fornecedor existe no DOM
+  if (!document.getElementById('modalFornecedor')) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'modalFornecedorOverlay';
+    overlay.style.display = 'none';
+    overlay.onclick = function(e) { if (e.target === overlay) fecharModalFornecedor(); };
+    overlay.innerHTML = `
+      <div class="modal" style="max-width:560px;width:100%">
+        <div class="modal-header">
+          <span class="modal-title" id="modalFornTitulo">Novo Fornecedor</span>
+          <button class="modal-close" onclick="fecharModalFornecedor()">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="form-group full" style="grid-column:1/-1">
+              <label>Razão Social *</label>
+              <input type="text" id="fornNome" placeholder="Nome da empresa" style="width:100%">
+            </div>
+            <div class="form-group">
+              <label>CNPJ / CPF</label>
+              <input type="text" id="fornCnpj" placeholder="00.000.000/0001-00" style="width:100%">
+            </div>
+            <div class="form-group">
+              <label>Categoria</label>
+              <select id="fornCategoria" style="width:100%">
+                <option value="">Selecione...</option>
+                <option>Manutenção</option>
+                <option>TI / Tecnologia</option>
+                <option>Escritório</option>
+                <option>Limpeza</option>
+                <option>Segurança</option>
+                <option>EPIs / Uniformes</option>
+                <option>Outros</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Contato (nome)</label>
+              <input type="text" id="fornContato" placeholder="Nome do responsável" style="width:100%">
+            </div>
+            <div class="form-group">
+              <label>Telefone</label>
+              <input type="tel" id="fornTelefone" placeholder="(00) 00000-0000" style="width:100%">
+            </div>
+            <div class="form-group full" style="grid-column:1/-1">
+              <label>E-mail</label>
+              <input type="email" id="fornEmail" placeholder="contato@empresa.com.br" style="width:100%">
+            </div>
+            <div class="form-group full" style="grid-column:1/-1">
+              <label>Observações</label>
+              <textarea id="fornObs" placeholder="Informações adicionais..." rows="3" style="width:100%;resize:vertical"></textarea>
+            </div>
+          </div>
+          <input type="hidden" id="fornIdEdit" value="">
+        </div>
+        <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:10px;padding:16px">
+          <button class="btn btn-ghost" onclick="fecharModalFornecedor()">Cancelar</button>
+          <button class="btn btn-primary" onclick="salvarFornecedor()">💾 Salvar Fornecedor</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+  }
+}
+
+function abrirModalFornecedor(id) {
+  initFornecedores();
+  const overlay = document.getElementById('modalFornecedorOverlay');
+  document.getElementById('fornIdEdit').value = id || '';
+  if (id) {
+    const f = window.fornecedoresDB.find(x => x.id === id);
+    if (f) {
+      document.getElementById('modalFornTitulo').textContent = 'Editar Fornecedor';
+      document.getElementById('fornNome').value = f.nome || '';
+      document.getElementById('fornCnpj').value = f.cnpj || '';
+      document.getElementById('fornCategoria').value = f.categoria || '';
+      document.getElementById('fornContato').value = f.contato || '';
+      document.getElementById('fornTelefone').value = f.telefone || '';
+      document.getElementById('fornEmail').value = f.email || '';
+      document.getElementById('fornObs').value = f.obs || '';
+    }
+  } else {
+    document.getElementById('modalFornTitulo').textContent = 'Novo Fornecedor';
+    document.getElementById('fornNome').value = '';
+    document.getElementById('fornCnpj').value = '';
+    document.getElementById('fornCategoria').value = '';
+    document.getElementById('fornContato').value = '';
+    document.getElementById('fornTelefone').value = '';
+    document.getElementById('fornEmail').value = '';
+    document.getElementById('fornObs').value = '';
+  }
+  overlay.style.display = 'flex';
+}
+
+function fecharModalFornecedor() {
+  const overlay = document.getElementById('modalFornecedorOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function salvarFornecedor() {
+  const nome = (document.getElementById('fornNome').value || '').trim();
+  if (!nome) { if(typeof showToast==='function') showToast('⚠️ Informe a Razão Social', 'yellow'); return; }
+  const id = document.getElementById('fornIdEdit').value;
+  const registro = {
+    id: id || ('FORN-' + Date.now()),
+    nome,
+    cnpj: (document.getElementById('fornCnpj').value || '').trim(),
+    categoria: document.getElementById('fornCategoria').value || '',
+    contato: (document.getElementById('fornContato').value || '').trim(),
+    telefone: (document.getElementById('fornTelefone').value || '').trim(),
+    email: (document.getElementById('fornEmail').value || '').trim(),
+    obs: (document.getElementById('fornObs').value || '').trim(),
+    ultimaCompra: '',
+    totalCompras: 0,
+  };
+  if (id) {
+    const idx = window.fornecedoresDB.findIndex(x => x.id === id);
+    if (idx >= 0) {
+      // Preservar dados históricos ao editar
+      registro.ultimaCompra = window.fornecedoresDB[idx].ultimaCompra || '';
+      registro.totalCompras = window.fornecedoresDB[idx].totalCompras || 0;
+      window.fornecedoresDB[idx] = registro;
+    } else {
+      window.fornecedoresDB.push(registro);
+    }
+    if(typeof showToast==='function') showToast('✅ Fornecedor atualizado!', 'green');
+  } else {
+    window.fornecedoresDB.push(registro);
+    if(typeof showToast==='function') showToast('✅ Fornecedor cadastrado!', 'green');
+  }
+  saveFornecedores();
+  fecharModalFornecedor();
+  renderFornecedores();
+}
+
+function deletarFornecedor(id) {
+  if (!confirm('Excluir este fornecedor? Esta ação não pode ser desfeita.')) return;
+  window.fornecedoresDB = window.fornecedoresDB.filter(f => f.id !== id);
+  saveFornecedores();
+  if (window._deletarFornFirebase) window._deletarFornFirebase(id);
+  if(typeof showToast==='function') showToast('🗑️ Fornecedor excluído', 'red');
+  renderFornecedores();
+}
+
+function filterFornecedores() {
+  renderFornecedores();
+}
+
+function renderFornecedores() {
+  const tbody = document.getElementById('tableFornecedores');
+  if (!tbody) return;
+  const search = (document.getElementById('searchForn')?.value || '').toLowerCase();
+  const catFiltro = document.getElementById('filterFornCategoria')?.value || '';
+  let lista = window.fornecedoresDB || [];
+  if (search) {
+    lista = lista.filter(f =>
+      (f.nome||'').toLowerCase().includes(search) ||
+      (f.contato||'').toLowerCase().includes(search) ||
+      (f.email||'').toLowerCase().includes(search) ||
+      (f.cnpj||'').toLowerCase().includes(search)
+    );
+  }
+  if (catFiltro) {
+    lista = lista.filter(f => f.categoria === catFiltro);
+  }
+  if (!lista.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text3)">
+      ${window.fornecedoresDB.length === 0
+        ? '🏢 Nenhum fornecedor cadastrado ainda. Clique em <strong>+ Novo Fornecedor</strong> para começar.'
+        : '🔍 Nenhum fornecedor encontrado com os filtros aplicados.'}
+    </td></tr>`;
+    return;
+  }
+  tbody.innerHTML = lista.map(f => `
+    <tr>
+      <td><strong>${f.nome}</strong>${f.cnpj ? '<br><span style="font-size:11px;color:var(--text3)">'+f.cnpj+'</span>' : ''}</td>
+      <td>${f.contato || '—'}</td>
+      <td>
+        ${f.telefone ? '<div>📞 '+f.telefone+'</div>' : ''}
+        ${f.email ? '<div style="font-size:11px">✉️ '+f.email+'</div>' : ''}
+        ${!f.telefone && !f.email ? '—' : ''}
+      </td>
+      <td>${f.categoria ? '<span class="status" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3)">'+f.categoria+'</span>' : '—'}</td>
+      <td style="font-family:var(--mono);font-size:12px">${f.ultimaCompra || '—'}</td>
+      <td style="text-align:center">${f.totalCompras || 0}</td>
+      <td>
+        <button class="btn btn-xs btn-ghost" onclick="abrirModalFornecedor('${f.id}')" style="margin-right:4px">✏️</button>
+        <button class="btn btn-xs" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3)" onclick="deletarFornecedor('${f.id}')">🗑️</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// ==================== FIM DO MÓDULO DE FORNECEDORES ====================
 
 window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('loginName').value = 'Usuário: Grupo FX';
